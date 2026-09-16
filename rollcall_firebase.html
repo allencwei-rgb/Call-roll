@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>每日查勤・教授8班</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+  :root{
+    --bg:#f4f6fb;
+    --card:#ffffff;
+    --text:#1a2233;
+    --text-dim:#5b6472;
+    --border:#e3e7ef;
+    --accent:#3457d5;
+    --green:#1c8a4b;
+    --green-bg:#e5f6ea;
+    --orange:#b5650a;
+    --orange-bg:#fdf0dc;
+    --blue:#1b5fb0;
+    --blue-bg:#e6eefb;
+    --gray:#8a8f99;
+    --gray-bg:#eef0f4;
+    --danger:#c62f2f;
+    --shadow: 0 1px 3px rgba(20,30,60,0.06), 0 1px 2px rgba(20,30,60,0.04);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#12151c; --card:#1b1f2a; --text:#eef1f7; --text-dim:#9aa2b1; --border:#2a3040;
+      --accent:#6f8bff; --green:#5fd08a; --green-bg:#173325; --orange:#f0a94e; --orange-bg:#3a2c14;
+      --blue:#7fb0ff; --blue-bg:#182842; --gray:#8a91a3; --gray-bg:#232734; --danger:#ff7b7b;
+      --shadow: 0 1px 3px rgba(0,0,0,0.4);
+    }
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;padding-bottom:40px;}
+  .wrap{max-width:640px;margin:0 auto;padding:14px 14px 8px;}
+  header{padding:6px 4px 14px;}
+  header h1{font-size:20px;margin:0 0 2px;font-weight:800;}
+  header .sub{font-size:12.5px;color:var(--text-dim);}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:var(--shadow);}
+  .row{display:flex;gap:10px;align-items:center;}
+  .field-label{font-size:12px;color:var(--text-dim);margin-bottom:6px;font-weight:600;}
+  input[type=date]{flex:1;padding:9px 10px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;}
+  .tabs{display:flex;gap:8px;}
+  .tab-btn{flex:1;padding:10px 6px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--text-dim);font-weight:700;font-size:14px;cursor:pointer;text-align:center;}
+  .tab-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .stats{display:flex;gap:10px;}
+  .stat{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:10px;text-align:center;}
+  .stat .n{font-size:20px;font-weight:800;}
+  .stat .l{font-size:11px;color:var(--text-dim);margin-top:2px;}
+  .stat.reported .n{color:var(--green);}
+  .stat.missing .n{color:var(--orange);}
+  input[type=text]{width:100%;padding:12px 12px;border-radius:12px;border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-size:17px;font-weight:700;letter-spacing:.5px;}
+  input[type=text]:focus{outline:none;border-color:var(--accent);}
+  .preview{margin-top:10px;min-height:20px;font-size:14px;color:var(--text-dim);}
+  .preview b{color:var(--text);}
+  .preview .miss{color:var(--danger);}
+  .action-btns{display:flex;gap:10px;margin-top:10px;}
+  .status-btn{flex:1;padding:12px 8px;border-radius:12px;border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-size:15px;font-weight:700;cursor:pointer;}
+  .status-btn.stay{border-color:var(--blue);color:var(--blue);}
+  .status-btn.out{border-color:var(--orange);color:var(--orange);}
+  .status-btn.present{border-color:var(--green);color:var(--green);}
+  .status-btn:active{transform:scale(0.97);}
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:9px 16px;border-radius:20px;font-size:13.5px;font-weight:600;box-shadow:0 4px 14px rgba(0,0,0,0.25);opacity:0;pointer-events:none;transition:opacity .2s ease, transform .2s ease;z-index:50;max-width:86%;text-align:center;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
+  .section-title{font-size:14px;font-weight:800;margin:2px 0 10px;display:flex;align-items:center;justify-content:space-between;}
+  .section-title .link-btn{font-size:12.5px;font-weight:700;color:var(--accent);background:none;border:none;cursor:pointer;padding:4px 0;}
+  .room-group{margin-bottom:12px;}
+  .room-code{font-size:12px;font-weight:800;color:var(--text-dim);margin-bottom:6px;letter-spacing:.5px;}
+  .student-row{display:flex;align-items:center;justify-content:space-between;padding:9px 2px;border-bottom:1px solid var(--border);gap:8px;}
+  .student-row:last-child{border-bottom:none;}
+  .student-name{font-size:14.5px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .student-id{font-size:11px;color:var(--text-dim);font-weight:500;margin-right:6px;}
+  .chip-group{display:flex;gap:6px;flex-shrink:0;}
+  .chip{padding:5px 10px;border-radius:20px;font-size:12px;font-weight:700;border:1.3px solid var(--border);background:var(--bg);color:var(--text-dim);cursor:pointer;white-space:nowrap;}
+  .chip.active.stay{background:var(--blue-bg);color:var(--blue);border-color:var(--blue);}
+  .chip.active.out{background:var(--orange-bg);color:var(--orange);border-color:var(--orange);}
+  .chip.active.present{background:var(--green-bg);color:var(--green);border-color:var(--green);}
+  .missing-panel{display:none;}
+  .missing-panel.show{display:block;}
+  .missing-chip{display:inline-block;background:var(--gray-bg);color:var(--gray);padding:4px 10px;border-radius:14px;font-size:12.5px;font-weight:600;margin:0 6px 6px 0;}
+  .btn-primary{width:100%;padding:13px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:800;cursor:pointer;}
+  .btn-secondary{width:100%;padding:11px;border-radius:12px;border:1.5px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;font-weight:700;cursor:pointer;margin-top:8px;}
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);display:none;align-items:flex-end;justify-content:center;z-index:100;}
+  .modal-overlay.show{display:flex;}
+  .modal{background:var(--card);width:100%;max-width:640px;border-radius:18px 18px 0 0;padding:16px 16px 22px;max-height:80vh;overflow:auto;box-shadow:0 -4px 20px rgba(0,0,0,0.2);}
+  .modal h3{margin:0 0 10px;font-size:16px;}
+  textarea{width:100%;min-height:220px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--text);padding:12px;font-size:13.5px;line-height:1.6;font-family:inherit;resize:vertical;}
+  .modal-btns{display:flex;gap:8px;margin-top:10px;}
+  .modal-btns button{flex:1;}
+  .conn-banner{font-size:12px;color:var(--orange);background:var(--orange-bg);padding:7px 10px;border-radius:10px;margin-bottom:10px;display:none;font-weight:600;}
+  .conn-banner.show{display:block;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>📋 每日查勤・教授8班</h1>
+    <div class="sub">雲端同步（Firebase）・任何人打開連結都能填寫，即時同步</div>
+  </header>
+
+  <div id="connBanner" class="conn-banner">⚠️ 雲端連線中，若持續無法儲存請重新整理頁面</div>
+
+  <div class="card">
+    <div class="field-label">日期</div>
+    <div class="row" style="margin-bottom:12px;">
+      <input type="date" id="datePicker">
+      <button class="tab-btn" id="todayBtn" style="flex:none;padding:9px 14px;">今天</button>
+    </div>
+    <div class="field-label">時段</div>
+    <div class="tabs">
+      <button class="tab-btn" data-session="0740" id="tabMorning">🌅 07:40 早查</button>
+      <button class="tab-btn" data-session="2150" id="tabNight">🌙 21:50 晚點名</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="stats">
+      <div class="stat"><div class="n" id="statTotal">26</div><div class="l">組內人數</div></div>
+      <div class="stat reported"><div class="n" id="statReported">0</div><div class="l">已回報</div></div>
+      <div class="stat missing"><div class="n" id="statMissing">26</div><div class="l">未回報</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="field-label">快速輸入學號</div>
+    <input type="text" id="idInput" inputmode="numeric" placeholder="輸入學號，例如 173" autocomplete="off">
+    <div class="preview" id="idPreview">請輸入學號查詢房號與姓名</div>
+    <div class="action-btns" id="actionBtns"></div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">
+      <span>名單狀態</span>
+      <button class="link-btn" id="toggleMissing">查看未回報名單</button>
+    </div>
+    <div class="missing-panel" id="missingPanel"></div>
+    <div id="rosterList"></div>
+  </div>
+
+  <div class="card">
+    <button class="btn-primary" id="exportBtn">📤 匯出文字檔</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-overlay" id="exportModal">
+  <div class="modal">
+    <h3 id="exportTitle">匯出內容</h3>
+    <textarea id="exportText" readonly></textarea>
+    <div class="modal-btns">
+      <button class="btn-secondary" id="copyBtn">📋 複製文字</button>
+      <button class="btn-secondary" id="downloadBtn">⬇️ 下載 .txt</button>
+    </div>
+    <button class="btn-secondary" id="closeModalBtn">關閉</button>
+  </div>
+</div>
+
+<script>
+// ---------- Firebase 設定 ----------
+const firebaseConfig = {
+  apiKey: "AIzaSyD_B0Jj2Zz-YsHQO8j36B4HBsQGtquzMpg",
+  authDomain: "call-roll.firebaseapp.com",
+  databaseURL: "https://call-roll-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "call-roll",
+  storageBucket: "call-roll.firebasestorage.app",
+  messagingSenderId: "897753658338",
+  appId: "1:897753658338:web:bf327fdb5882e11af9bfbb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// ---------- 名單資料（內建寢室編組）----------
+const ROOMS = [
+  {code:'H2022', space:false, students:[{id:'173', name:'蘇棕誠', exportName:'173-蘇棕誠'}]},
+  {code:'H2062', space:false, students:[{id:'174', name:'謝忠霖'},{id:'175', name:'粘祐禎'}]},
+  {code:'H2065', space:false, students:[{id:'176', name:'蕭煒騰'},{id:'177', name:'薛仟煌'}]},
+  {code:'H2060', space:false, students:[{id:'178', name:'簡志峰'},{id:'179', name:'董俊良'}]},
+  {code:'H2066', space:false, students:[{id:'180', name:'陳易謙'},{id:'181', name:'陳弘偉'}]},
+  {code:'H2018', space:true,  students:[{id:'182', name:'黃茗楷'},{id:'183', name:'陳昭羽'}]},
+  {code:'H2064', space:false, students:[{id:'184', name:'胡育霖'},{id:'185', name:'陳堡雍'}]},
+  {code:'H2017', space:false, students:[{id:'186', name:'陳俊廷'},{id:'187', name:'陳守山'}]},
+  {code:'H2021', space:true,  students:[{id:'188', name:'翁翊翔'},{id:'189', name:'李冠群'}]},
+  {code:'H2061', space:false, students:[{id:'190', name:'黃懷逸'},{id:'191', name:'林智昇'}]},
+  {code:'F4004', space:true,  students:[{id:'192', name:'李紀樺'},{id:'193', name:'詹紫涵'}]},
+  {code:'F4007', space:false, students:[{id:'194', name:'江桓瑜'},{id:'195', name:'吳婉瑜'}]},
+  {code:'H2063', space:false, students:[{id:'196', name:'陳世庭'},{id:'197', name:'范光軒'}]},
+  {code:'H2014', space:true,  students:[{id:'198', name:'宋柏緯'}]},
+];
+const STUDENT_MAP = {};
+ROOMS.forEach(r => r.students.forEach(s => { STUDENT_MAP[s.id] = {...s, room:r.code}; }));
+const TOTAL = Object.keys(STUDENT_MAP).length;
+
+// ---------- 狀態 ----------
+let currentData = {};
+let currentSession = '2150';
+let currentDate = todayStr();
+let attendanceRef = null;
+
+function todayStr(){
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// ---------- DOM refs ----------
+const $ = id => document.getElementById(id);
+const datePicker = $('datePicker');
+const todayBtn = $('todayBtn');
+const tabMorning = $('tabMorning');
+const tabNight = $('tabNight');
+const statTotal = $('statTotal');
+const statReported = $('statReported');
+const statMissing = $('statMissing');
+const idInput = $('idInput');
+const idPreview = $('idPreview');
+const actionBtns = $('actionBtns');
+const rosterList = $('rosterList');
+const missingPanel = $('missingPanel');
+const toggleMissingBtn = $('toggleMissing');
+const toast = $('toast');
+const connBanner = $('connBanner');
+const exportModal = $('exportModal');
+const exportText = $('exportText');
+const exportTitle = $('exportTitle');
+
+datePicker.value = currentDate;
+statTotal.textContent = TOTAL;
+
+// ---------- 連線狀態 ----------
+db.ref('.info/connected').on('value', snap => {
+  connBanner.classList.toggle('show', snap.val() !== true);
+});
+
+// ---------- 共用日期/時段（meta，大家同步）----------
+db.ref('meta').on('value', snap => {
+  const data = snap.val();
+  if(data && data.date && data.session){
+    applyMetaLocal(data.date, data.session);
+  }else{
+    db.ref('meta').set({date: currentDate, session: currentSession, updatedAt: Date.now()});
+  }
+});
+function applyMetaLocal(date, session){
+  const changed = (date !== currentDate) || (session !== currentSession);
+  currentDate = date;
+  currentSession = session;
+  datePicker.value = currentDate;
+  tabMorning.classList.toggle('active', currentSession==='0740');
+  tabNight.classList.toggle('active', currentSession==='2150');
+  renderActionButtons();
+  if(changed || !attendanceRef){ subscribe(); }
+}
+function updateMeta(patch){
+  const next = {
+    date: patch.date !== undefined ? patch.date : currentDate,
+    session: patch.session !== undefined ? patch.session : currentSession,
+    updatedAt: Date.now()
+  };
+  db.ref('meta').set(next).catch(e=>{ console.error(e); showToast('⚠️ 更新失敗，請檢查網路'); });
+}
+
+// ---------- 訂閱當前日期+時段的點名資料 ----------
+function subscribe(){
+  if(attendanceRef){ attendanceRef.off(); attendanceRef = null; }
+  currentData = {};
+  render();
+  const path = `attendance/${currentDate}_${currentSession}`;
+  attendanceRef = db.ref(path);
+  attendanceRef.on('value', snap => {
+    currentData = snap.val() || {};
+    render();
+  }, err => {
+    console.error('attendance listen error', err);
+    connBanner.classList.add('show');
+  });
+}
+
+// ---------- 寫入狀態 ----------
+function setStatus(studentId, status){
+  const info = STUDENT_MAP[studentId];
+  if(!info) return;
+  const path = `attendance/${currentDate}_${currentSession}/${studentId}`;
+  db.ref(path).set({ name: info.name, room: info.room, status, ts: Date.now() })
+    .then(()=> showToast(`✅ ${info.room} ${info.name}：${status}`))
+    .catch(e=>{ console.error(e); showToast('⚠️ 儲存失敗，請重試'); });
+}
+function clearStatus(studentId){
+  const info = STUDENT_MAP[studentId];
+  if(!info) return;
+  const path = `attendance/${currentDate}_${currentSession}/${studentId}`;
+  db.ref(path).remove()
+    .then(()=> showToast(`↩️ 已清除 ${info.name} 的回報`))
+    .catch(e=> console.error(e));
+}
+
+// ---------- Toast ----------
+let toastTimer = null;
+function showToast(msg){
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> toast.classList.remove('show'), 1800);
+}
+
+// ---------- Tabs / date ----------
+tabMorning.addEventListener('click', ()=> updateMeta({session:'0740'}));
+tabNight.addEventListener('click', ()=> updateMeta({session:'2150'}));
+datePicker.addEventListener('change', ()=> updateMeta({date: datePicker.value || todayStr()}));
+todayBtn.addEventListener('click', ()=> updateMeta({date: todayStr()}));
+tabMorning.classList.toggle('active', currentSession==='0740');
+tabNight.classList.toggle('active', currentSession==='2150');
+renderActionButtons();
+subscribe();
+
+// ---------- Quick entry ----------
+idInput.addEventListener('input', ()=> renderPreview(idInput.value.trim()));
+function renderPreview(v){
+  if(!v){ idPreview.innerHTML = '請輸入學號查詢房號與姓名'; return; }
+  const info = STUDENT_MAP[v];
+  if(info){
+    const rec = currentData[v];
+    const statusTxt = rec ? `　（目前：${rec.status}）` : '　（尚未回報）';
+    idPreview.innerHTML = `房號：<b>${info.room}</b>　姓名：<b>${info.name}</b>${statusTxt}`;
+  }else{
+    idPreview.innerHTML = `<span class="miss">查無此學號</span>`;
+  }
+}
+function renderActionButtons(){
+  actionBtns.innerHTML = '';
+  if(currentSession === '0740'){
+    const btn = document.createElement('button');
+    btn.className = 'status-btn present';
+    btn.textContent = '✅ 確認到';
+    btn.onclick = ()=> submitQuick('到');
+    actionBtns.appendChild(btn);
+  }else{
+    const stay = document.createElement('button');
+    stay.className = 'status-btn stay';
+    stay.textContent = '🏠 留';
+    stay.onclick = ()=> submitQuick('留');
+    const out = document.createElement('button');
+    out.className = 'status-btn out';
+    out.textContent = '🚶 外';
+    out.onclick = ()=> submitQuick('外');
+    actionBtns.appendChild(stay);
+    actionBtns.appendChild(out);
+  }
+}
+function submitQuick(status){
+  const v = idInput.value.trim();
+  if(!v){ showToast('請先輸入學號'); return; }
+  if(!STUDENT_MAP[v]){ showToast('查無此學號'); return; }
+  setStatus(v, status);
+  idInput.value = '';
+  renderPreview('');
+  idInput.focus();
+}
+idInput.addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter' && currentSession === '0740'){ submitQuick('到'); }
+});
+
+// ---------- Roster render ----------
+function render(){
+  const reportedCount = Object.keys(currentData).filter(id=>STUDENT_MAP[id]).length;
+  statReported.textContent = reportedCount;
+  statMissing.textContent = TOTAL - reportedCount;
+
+  rosterList.innerHTML = '';
+  ROOMS.forEach(room=>{
+    const group = document.createElement('div');
+    group.className = 'room-group';
+    const codeEl = document.createElement('div');
+    codeEl.className = 'room-code';
+    codeEl.textContent = room.code;
+    group.appendChild(codeEl);
+    room.students.forEach(s=>{
+      const rec = currentData[s.id];
+      const row = document.createElement('div');
+      row.className = 'student-row';
+      const nameWrap = document.createElement('div');
+      nameWrap.style.display='flex';
+      nameWrap.style.alignItems='center';
+      nameWrap.style.minWidth='0';
+      nameWrap.style.flex='1';
+      nameWrap.innerHTML = `<span class="student-id">${s.id}</span><span class="student-name">${s.name}</span>`;
+      row.appendChild(nameWrap);
+
+      const chipGroup = document.createElement('div');
+      chipGroup.className = 'chip-group';
+      if(currentSession === '0740'){
+        const chip = document.createElement('button');
+        chip.className = 'chip present' + (rec && rec.status==='到' ? ' active present' : '');
+        chip.textContent = rec && rec.status==='到' ? '✓ 到' : '到';
+        chip.onclick = ()=> { if(rec && rec.status==='到') clearStatus(s.id); else setStatus(s.id, '到'); };
+        chipGroup.appendChild(chip);
+      }else{
+        const stayChip = document.createElement('button');
+        stayChip.className = 'chip stay' + (rec && rec.status==='留' ? ' active stay' : '');
+        stayChip.textContent = '留';
+        stayChip.onclick = ()=> { if(rec && rec.status==='留') clearStatus(s.id); else setStatus(s.id, '留'); };
+        const outChip = document.createElement('button');
+        outChip.className = 'chip out' + (rec && rec.status==='外' ? ' active out' : '');
+        outChip.textContent = '外';
+        outChip.onclick = ()=> { if(rec && rec.status==='外') clearStatus(s.id); else setStatus(s.id, '外'); };
+        chipGroup.appendChild(stayChip);
+        chipGroup.appendChild(outChip);
+      }
+      row.appendChild(chipGroup);
+      group.appendChild(row);
+    });
+    rosterList.appendChild(group);
+  });
+
+  renderMissing();
+  const v = idInput.value.trim();
+  if(v) renderPreview(v);
+}
+
+function renderMissing(){
+  const missing = [];
+  ROOMS.forEach(room=>{
+    room.students.forEach(s=>{
+      if(!currentData[s.id]){ missing.push(`${room.code} ${s.name}`); }
+    });
+  });
+  if(missing.length === 0){
+    missingPanel.innerHTML = '<div style="font-size:13px;color:var(--green);font-weight:700;">🎉 全數回報完成</div>';
+  }else{
+    missingPanel.innerHTML = missing.map(m=>`<span class="missing-chip">${m}</span>`).join('');
+  }
+}
+toggleMissingBtn.addEventListener('click', ()=>{
+  const showing = missingPanel.classList.toggle('show');
+  toggleMissingBtn.textContent = showing ? '收合未回報名單' : '查看未回報名單';
+});
+
+// ---------- Export ----------
+function formatDateHeader(dateStr){
+  const [y,m,d] = dateStr.split('-').map(Number);
+  return `${m}/${d}`;
+}
+function buildExportText(){
+  const header = `⭕️教授8班 ${formatDateHeader(currentDate)}`;
+  const lines = [header];
+  ROOMS.forEach(room=>{
+    const parts = room.students.map(s=>{
+      const rec = currentData[s.id];
+      const displayName = s.exportName || s.name;
+      let tag = '';
+      if(rec && rec.status){
+        tag = currentSession === '0740' ? rec.status : `（${rec.status}）`;
+      }
+      return displayName + tag;
+    });
+    const label = room.code + (room.space ? ' ' : '');
+    lines.push(label + parts.join('、'));
+  });
+  return lines.join('\n');
+}
+$('exportBtn').addEventListener('click', ()=>{
+  const sessionLabel = currentSession === '0740' ? '07:40 早查' : '21:50 晚點名';
+  exportTitle.textContent = `匯出內容・${sessionLabel}`;
+  exportText.value = buildExportText();
+  exportModal.classList.add('show');
+});
+$('closeModalBtn').addEventListener('click', ()=> exportModal.classList.remove('show'));
+exportModal.addEventListener('click', (e)=>{ if(e.target === exportModal) exportModal.classList.remove('show'); });
+
+$('copyBtn').addEventListener('click', async ()=>{
+  try{
+    await navigator.clipboard.writeText(exportText.value);
+    showToast('📋 已複製到剪貼簿');
+  }catch(e){
+    exportText.select();
+    showToast('請長按文字區塊手動複製');
+  }
+});
+$('downloadBtn').addEventListener('click', ()=>{
+  const filename = `教授8班_${currentDate}_${currentSession}.txt`;
+  const blob = new Blob([exportText.value], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('⬇️ 已下載');
+});
+
+render();
+</script>
+</body>
+</html>
